@@ -25,12 +25,17 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 	
-	unsigned int nj = robot.getNrOfJoints();
-	
+	KDL::Chain arm;
+	bool ok = robot.getChain('mico_link_base', 'mico_link_hand', robot);
+	if (!ok) {
+		std::cerr << "Failed to build subchain" << std::endl;
+		return 1;
+	}
 
-	KDL::TreeFkSolverPos_recursive fksolver(robot);
+	KDL::ChainFkSolverVel_recursive fksolver(arm);
 	KDL::Frame cart_pos;
-	KDL::JntArray joints(robot.getNrOfJoints());
+	KDL::JntArray joint_pos(robot.getNrOfJoints());
+	KDL::JntArray joint_vel(robot.getNrOfJoints());
 	
 	std::vector<std::string> frames;
 	frames.push_back("mico_link_1");
@@ -63,16 +68,26 @@ int main(int argc, char** argv) {
 	    std::ofstream outf(outfile.native().c_str());
 	    outf << "time";
 	    for (std::vector<std::string>::const_iterator it = frames.begin(); it != frames.end(); ++it) {
-	        outf << "," << *it << "_x";
-	        outf << "," << *it << "_y";
-	        outf << "," << *it << "_z";
+	        outf << "," << *it << "_x"
+				 << "," << *it << "_y"
+				 << "," << *it << "_z"
+				 << "," << *it << "_q0"
+				 << "," << *it << "_qx"
+				 << "," << *it << "_qy"
+				 << "," << *it << "_qz"
+				 << "," << *it << "_dx"
+				 << "," << *it << "_dy"
+				 << "," << *it << "_dz"
+				 << "," << *it << "_drx"
+				 << "," << *it << "_dry"
+				 << "," << *it << "_drz"
+				 ;
 	    }
 	    outf << "\n";
 	    
 	    rosbag::View view(bag, rosbag::TopicQuery(topics));
 	    for (rosbag::View::iterator it = view.begin(); it != view.end(); ++it) {
 //	         std::cout << "message at " << it->getTime() << " topic: " << it->getTopic() << std::endl;
-            outf << it->getTime();
 	         sensor_msgs::JointState::ConstPtr joint_state_ptr = it->instantiate<sensor_msgs::JointState>();
 	         if (joint_state_ptr) {
 //	             std::cout << "read in joint state: " << *joint_state_ptr << std::endl;
@@ -80,27 +95,31 @@ int main(int argc, char** argv) {
 //	                std::cout << "Searching for " << joint_state_ptr->name[j] << std::endl;
 	                JointNumMapType::const_iterator joint_num = joint_num_map.find(joint_state_ptr->name[j]);
 	                if (joint_num != joint_num_map.end()) {
-	                    joints(joint_num->second) = joint_state_ptr->position[j];
+	                    joint_pos(joint_num->second) = joint_state_ptr->position[j];
+	                    joint_vel(joint_num->second) = joint_state_ptr->velocity[j];
 //	                    std::cout << "Set " << joint_state_ptr->name[j] << " to " << joint_state_ptr->position[j] << std::endl;
 	                } else {
 //	                    std::cout << "Failed to find joint for " << joint_state_ptr->name[j] << std::endl;
 	                }
 	             }
 	             
-	             for (std::vector<std::string>::const_iterator frame = frames.begin(); frame != frames.end(); ++frame) {
-	                int status = fksolver.JntToCart(joints, cart_pos, *frame);
-//	                std::cout << *frame << ": ";
-	                if (status >= 0) {
-//	                    std::cout << cart_pos.p;
-                        outf << "," << cart_pos.p(0) << "," << cart_pos.p(1) << "," << cart_pos.p(2);
-	                } else {
-//	                    std::cout << status;
-	                }
-//                    std::cout << std::endl;
+	             std::vector<KDL::FrameVel> frame_vels;
+	             int status = fksolver.JntToCart(KDL::JntArrayVel(joint_pos, joint_vel), frame_vels);
+	             if (status >= 0) {
+					 outf << it->getTime();
+					 for (auto it = frame_vels.begin(); it != frame_vels.end(); ++it) {
+						outf << "," << it->value().p(0) << "," << it->value().p(1) << "," << it->value().p(2);
+						double q0,qx,qy,qz;
+						it->value().M.GetQuaternion(qx, qy, qz, q0);
+						outf << "," << q0 << "," << qx << "," << qy << "," << qz;
+
+						outf << "," << it->deriv().vel(0) << "," << it->deriv().vel(1) << "," << it->deriv().vel(2)
+							<< "," << it->deriv().rot(0) << "," << it->deriv().rot(1) << "," << it->deriv().rot(2)
+							;
+
+					 }
+					 outf << std::endl;
 	             }
-	             outf << std::endl;
-	         } else {
-//	            std::cout << "got empty joint state pointer" << std::endl;
 	         }
 	    }
 	}
