@@ -101,20 +101,20 @@ include_directories(
 # )
 
 ## Declare a cpp executable
-add_executable(joint_converter src/convert.cpp)
-add_executable(joint_converter_test src/test.cpp)
+#add_executable(joint_converter src/convert.cpp)
+#add_executable(joint_converter_test src/test.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(foxbot_node_node foxbot_node_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(joint_converter
-  ${catkin_LIBRARIES}
-)
-target_link_libraries(joint_converter_test
-  ${catkin_LIBRARIES}
-)
+#target_link_libraries(joint_converter
+#  ${catkin_LIBRARIES}
+#)
+#target_link_libraries(joint_converter_test
+#  ${catkin_LIBRARIES}
+#)
 
 #############
 ## Install ##
